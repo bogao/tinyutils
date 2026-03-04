@@ -1,0 +1,6 @@
+{
+  "mailgunfire": {
+    "method":   "tls",
+    "eu":       true
+  }
+}
