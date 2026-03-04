@@ -80,34 +80,88 @@ function load_config(): array {
 }
 
 function markdown_to_html(string $md): string {
-    $html = htmlspecialchars($md, ENT_NOQUOTES, 'UTF-8');
-    $html = preg_replace('/^###### (.+)$/m', '<h6>$1</h6>', $html);
-    $html = preg_replace('/^##### (.+)$/m',  '<h5>$1</h5>', $html);
-    $html = preg_replace('/^#### (.+)$/m',   '<h4>$1</h4>', $html);
-    $html = preg_replace('/^### (.+)$/m',    '<h3>$1</h3>', $html);
-    $html = preg_replace('/^## (.+)$/m',     '<h2>$1</h2>', $html);
-    $html = preg_replace('/^# (.+)$/m',      '<h1>$1</h1>', $html);
-    $html = preg_replace('/\*\*\*(.+?)\*\*\*/', '<strong><em>$1</em></strong>', $html);
-    $html = preg_replace('/\*\*(.+?)\*\*/',     '<strong>$1</strong>',          $html);
-    $html = preg_replace('/\*(.+?)\*/',          '<em>$1</em>',                 $html);
-    $html = preg_replace('/`(.+?)`/', '<code>$1</code>', $html);
-    $html = preg_replace('/\[(.+?)\]\((.+?)\)/', '<a href="$2">$1</a>', $html);
-    $html = preg_replace('/^---+$/m', '<hr>', $html);
-    $html = preg_replace('/^[*\-] (.+)$/m', '<li>$1</li>', $html);
-    $html = preg_replace('/(<li>.*<\/li>)/s', '<ul>$1</ul>', $html);
-    $html = preg_replace('/^&gt; (.+)$/m', '<blockquote>$1</blockquote>', $html);
-    $blocks = preg_split('/\n{2,}/', trim($html));
-    $out = [];
+    // ── 1. Extract fenced code blocks before HTML-escaping ─────────────────
+    $code_blocks = [];
+    $md = preg_replace_callback(
+        '/^```(\w*)\r?\n([\s\S]*?)^```\r?$/m',
+        function ($m) use (&$code_blocks) {
+            $idx = count($code_blocks);
+            $attr = $m[1] ? ' class="language-' . htmlspecialchars($m[1], ENT_QUOTES, 'UTF-8') . '"' : '';
+            $code_blocks[] = '<pre><code' . $attr . '>'
+                . htmlspecialchars($m[2], ENT_NOQUOTES, 'UTF-8')
+                . '</code></pre>';
+            return "\x00CB{$idx}\x00";
+        },
+        $md
+    );
+
+    // ── 2. HTML-escape the rest ─────────────────────────────────────────────
+    $h = htmlspecialchars($md, ENT_NOQUOTES, 'UTF-8');
+
+    // ── 3. Headings ────────────────────────────────────────────────────────
+    for ($n = 6; $n >= 1; $n--) {
+        $h = preg_replace('/^' . str_repeat('#', $n) . ' (.+)$/m', "<h{$n}>$1</h{$n}>", $h);
+    }
+
+    // ── 4. Inline markup ───────────────────────────────────────────────────
+    $h = preg_replace('/\*\*\*(.+?)\*\*\*/', '<strong><em>$1</em></strong>', $h);
+    $h = preg_replace('/\*\*(.+?)\*\*/',     '<strong>$1</strong>',          $h);
+    $h = preg_replace('/\*(.+?)\*/',         '<em>$1</em>',                  $h);
+    $h = preg_replace('/`(.+?)`/',           '<code>$1</code>',              $h);
+    $h = preg_replace('/\[(.+?)\]\((.+?)\)/', '<a href="$2">$1</a>',        $h);
+
+    // ── 5. Thematic break ──────────────────────────────────────────────────
+    $h = preg_replace('/^---+$/m', '<hr>', $h);
+
+    // ── 6. Blockquotes ─────────────────────────────────────────────────────
+    $h = preg_replace('/^&gt; (.+)$/m', '<blockquote>$1</blockquote>', $h);
+
+    // ── 7. Lists — mark items then group consecutive lines ─────────────────
+    $h = preg_replace('/^[ \t]*[*\-] (.+)$/m',    '<li>$1</li>',       $h);
+    $h = preg_replace('/^[ \t]*\d+\.\s+(.+)$/m',  '<li_ol>$1</li_ol>', $h);
+
+    $lines = explode("\n", $h);
+    $out_lines = [];
+    $in_ul = false;
+    $in_ol = false;
+    foreach ($lines as $line) {
+        if (str_starts_with($line, '<li>')) {
+            if (!$in_ul) { $out_lines[] = '<ul>'; $in_ul = true; }
+            $out_lines[] = $line;
+        } elseif (str_starts_with($line, '<li_ol>')) {
+            if (!$in_ol) { $out_lines[] = '<ol>'; $in_ol = true; }
+            $out_lines[] = '<li>' . substr($line, 7, -8) . '</li>';
+        } else {
+            if ($in_ul) { $out_lines[] = '</ul>'; $in_ul = false; }
+            if ($in_ol) { $out_lines[] = '</ol>'; $in_ol = false; }
+            $out_lines[] = $line;
+        }
+    }
+    if ($in_ul) $out_lines[] = '</ul>';
+    if ($in_ol) $out_lines[] = '</ol>';
+    $h = implode("\n", $out_lines);
+
+    // ── 8. Build paragraph blocks ──────────────────────────────────────────
+    $blocks = preg_split('/\n{2,}/', trim($h));
+    $parts  = [];
     foreach ($blocks as $block) {
         $block = trim($block);
         if ($block === '') continue;
-        if (preg_match('/^<(h[1-6]|ul|ol|li|blockquote|hr|pre)/', $block)) {
-            $out[] = $block;
+        if (preg_match('/^\x00CB\d+\x00$/', $block)) {
+            $parts[] = $block; // code block placeholder — restored below
+        } elseif (preg_match('/^<(h[1-6]|ul|ol|blockquote|hr|pre)/', $block)) {
+            $parts[] = $block;
         } else {
-            $out[] = '<p>' . nl2br($block) . '</p>';
+            $parts[] = '<p>' . nl2br($block) . '</p>';
         }
     }
-    return implode("\n", $out);
+    $result = implode("\n", $parts);
+
+    // ── 9. Restore code blocks ─────────────────────────────────────────────
+    foreach ($code_blocks as $idx => $cb) {
+        $result = str_replace("\x00CB{$idx}\x00", $cb, $result);
+    }
+    return $result;
 }
 
 function format_address_list(array $addrs): string {
@@ -148,11 +202,22 @@ function send_email(array $cfg, string $sender, string $display, array $to, arra
 
     foreach ($attachments as $att) {
         $filename = $att['filename'] ?? 'attachment';
-        $content = $att['content'];
-        $mime = $att['mime'] ?? 'application/octet-stream';
+        $content  = $att['content'];
+        $mime     = $att['mime'] ?? 'application/octet-stream';
         $body .= "--$boundary\r\n";
-        $body .= "Content-Type: $mime; name=\"$filename\"\r\n";
-        $body .= "Content-Disposition: attachment; filename=\"$filename\"\r\n";
+        // RFC 2231 / RFC 5987: encode non-ASCII filenames
+        if (preg_match('/[^\x20-\x7E]/', $filename)) {
+            $ascii_name = preg_replace('/[^\x20-\x7E]/', '_', $filename);
+            $encoded    = rawurlencode($filename);
+            $name_hdr   = '"' . $ascii_name . '"; name*=UTF-8\'\'' . $encoded;
+            $disp_hdr   = '"' . $ascii_name . '"; filename*=UTF-8\'\'' . $encoded;
+        } else {
+            $q          = str_replace(['"', '\\'], ['\\"', '\\\\'], $filename);
+            $name_hdr   = '"' . $q . '"';
+            $disp_hdr   = '"' . $q . '"';
+        }
+        $body .= "Content-Type: $mime; name=$name_hdr\r\n";
+        $body .= "Content-Disposition: attachment; filename=$disp_hdr\r\n";
         $body .= "Content-Transfer-Encoding: base64\r\n\r\n";
         $body .= chunk_split($content) . "\r\n";
     }
@@ -1272,28 +1337,63 @@ applyI18n();
 // MARKDOWN UTILITY
 // ══════════════════════════════════════════════════════════════════════════════
 function mdToHtml(md) {
+  // Fenced code blocks first (before any escaping)
+  const codeBlocks = [];
+  md = md.replace(/^```(\w*)\n([\s\S]*?)^```$/gm, (_, lang, code) => {
+    const attr = lang ? ` class="language-${lang}"` : '';
+    codeBlocks.push(`<pre><code${attr}>${code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</code></pre>`);
+    return `\x00CB${codeBlocks.length - 1}\x00`;
+  });
+
   let h = md
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/\*\*\*(.+?)\*\*\*/g,'<strong><em>$1</em></strong>')
-    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g,'<em>$1</em>')
-    .replace(/`(.+?)`/g,'<code>$1</code>')
-    .replace(/\[(.+?)\]\((.+?)\)/g,'<a href="$2">$1</a>')
     .replace(/^###### (.+)$/gm,'<h6>$1</h6>')
     .replace(/^##### (.+)$/gm,'<h5>$1</h5>')
     .replace(/^#### (.+)$/gm,'<h4>$1</h4>')
     .replace(/^### (.+)$/gm,'<h3>$1</h3>')
     .replace(/^## (.+)$/gm,'<h2>$1</h2>')
     .replace(/^# (.+)$/gm,'<h1>$1</h1>')
+    .replace(/\*\*\*(.+?)\*\*\*/g,'<strong><em>$1</em></strong>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/`(.+?)`/g,'<code>$1</code>')
+    .replace(/\[(.+?)\]\((.+?)\)/g,'<a href="$2">$1</a>')
     .replace(/^---+$/gm,'<hr>')
-    .replace(/^[*\-] (.+)$/gm,'<li>$1</li>')
-    .replace(/^&gt; (.+)$/gm,'<blockquote>$1</blockquote>');
-  h = h.replace(/(<li>[\s\S]*?<\/li>)/g,'<ul>$1</ul>');
-  return h.split(/\n{2,}/).map(b => {
+    .replace(/^&gt; (.+)$/gm,'<blockquote>$1</blockquote>')
+    .replace(/^[ \t]*[*\-] (.+)$/gm,'<li>$1</li>')
+    .replace(/^[ \t]*\d+\.\s+(.+)$/gm,'<li_ol>$1</li_ol>');
+
+  // Group consecutive <li> into <ul>, and <li_ol> into <ol>
+  const lines = h.split('\n');
+  const out = [];
+  let inUl = false, inOl = false;
+  for (const line of lines) {
+    if (line.startsWith('<li>')) {
+      if (!inUl) { out.push('<ul>'); inUl = true; }
+      out.push(line);
+    } else if (line.startsWith('<li_ol>')) {
+      if (!inOl) { out.push('<ol>'); inOl = true; }
+      out.push('<li>' + line.slice(7, -8) + '</li>');
+    } else {
+      if (inUl) { out.push('</ul>'); inUl = false; }
+      if (inOl) { out.push('</ol>'); inOl = false; }
+      out.push(line);
+    }
+  }
+  if (inUl) out.push('</ul>');
+  if (inOl) out.push('</ol>');
+  h = out.join('\n');
+
+  h = h.split(/\n{2,}/).map(b => {
     b = b.trim(); if (!b) return '';
-    if (/^<(h[1-6]|ul|ol|li|blockquote|hr|pre)/.test(b)) return b;
+    if (/^\x00CB\d+\x00$/.test(b)) return b;
+    if (/^<(h[1-6]|ul|ol|blockquote|hr|pre)/.test(b)) return b;
     return '<p>' + b.replace(/\n/g,'<br>') + '</p>';
   }).join('\n');
+
+  // Restore code blocks
+  codeBlocks.forEach((cb, i) => { h = h.replace(`\x00CB${i}\x00`, cb); });
+  return h;
 }
 
 function htmlToMd(html) {
@@ -1541,8 +1641,7 @@ const progressStepsList = [
 ];
 
 function getStepText(step) {
-  const lang = LANG[currentLang] || LANG.en;
-  return step[lang] || step.en;
+  return step[currentLang] || step.en;
 }
 
 function showProgressModal() {
