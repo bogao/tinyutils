@@ -171,29 +171,6 @@ function send_email(array $cfg, string $sender, string $display, array $to, arra
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 if ($method === 'POST') {
-    $utils_api_key = getenv('UTILS_API_KEY');
-    if ($utils_api_key) {
-        $timestamp = $_SERVER['HTTP_X_TIMESTAMP'] ?? '';
-        $signature = $_SERVER['HTTP_X_SIGNATURE'] ?? '';
-
-        if (!$timestamp || !$signature) {
-            http_response_code(401);
-            die(json_encode(['ok' => false, 'error' => 'Missing auth headers']));
-        }
-
-        $ts = (int)$timestamp;
-        if (abs(time() - $ts) > 300) {
-            http_response_code(401);
-            die(json_encode(['ok' => false, 'error' => 'Expired request']));
-        }
-
-        $expected = hash_hmac('sha256', $timestamp, $utils_api_key);
-        if (!hash_equals($expected, $signature)) {
-            http_response_code(401);
-            die(json_encode(['ok' => false, 'error' => 'Invalid signature']));
-        }
-    }
-
     header('Content-Type: application/json; charset=utf-8');
     $cfg   = load_config();
     $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
@@ -762,9 +739,6 @@ input[type="email"]:focus {
   border: none; padding: 0; margin-left: .1rem;
 }
 .att-chip .remove:hover { background: rgba(59,130,246,.25); }
-
-.api-key-input { width: 100%; max-width: 320px; }
-#apiKeySection { display: none; }
 </style>
 </head>
 <body>
@@ -795,14 +769,7 @@ input[type="email"]:focus {
 
 <form id="mailForm">
 
-    <!-- API Key (stored locally) -->
-    <div id="apiKeySection">
-      <label class="field-label" for="apiKey" data-i18n="label_apikey">API KEY</label>
-      <input type="password" id="apiKey" class="api-key-input" data-i18n-ph="ph_apikey">
-      <p class="hint" data-i18n="hint_apikey">Saved locally, never sent to server</p>
-    </div>
-
-    <div class="section-divider"></div>
+  <div class="section-divider"></div>
 
     <!-- To -->
     <div>
@@ -905,6 +872,16 @@ input[type="email"]:focus {
   </form>
 </div><!-- .card -->
 
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-content">
+    <div class="modal-icon" id="modalIcon"></div>
+    <h2 class="modal-title" id="modalTitle"></h2>
+    <p class="modal-message" id="modalMessage"></p>
+    <button type="button" class="btn-primary modal-btn" id="modalClose" data-i18n="modal_ok">OK</button>
+  </div>
+</div>
+
 <script>
 'use strict';
 
@@ -931,6 +908,7 @@ const LANG = {
     err_apikey:'Please enter API key', err_nosign:'Auth failed',
     sending:'Sending…',
     hdr_sub:'Send via Mailgun SMTP — domain: ',
+    modal_ok:'OK', modal_success:'Success', modal_error:'Error',
   },
   ja: {
     label_from:'差出人（ユーザー名）', label_display:'表示名',
@@ -951,6 +929,7 @@ const LANG = {
     err_apikey:'APIキーを入力してください', err_nosign:'認証失敗',
     sending:'送信中…',
     hdr_sub:'Mailgun SMTP 経由で送信 — ドメイン: ',
+    modal_ok:'OK', modal_success:'成功', modal_error:'エラー',
   },
   th: {
     label_from:'ผู้ส่ง (ชื่อผู้ใช้)', label_display:'ชื่อที่แสดง',
@@ -967,10 +946,11 @@ const LANG = {
     mode_rich:'รูปแบบ', mode_md:'Markdown',
     btn_clear:'ล้าง', btn_send:'ส่งอีเมล', btn_attach:'เพิ่มไฟล์',
     err_no_to:'กรุณาเพิ่มผู้รับอย่างน้อยหนึ่งคน',
-    err_network:'ข้อผิดพลาดเ�ครือข่าย: ',
+    err_network:'ข้อผิดพลาดเครือข่าย: ',
     err_apikey:'กรุณาใส่ API key', err_nosign:'การยืนยันล้มเหลว',
     sending:'กำลังส่ง…',
     hdr_sub:'ส่งผ่าน Mailgun SMTP — โดเมน: ',
+    modal_ok:'ตกลง', modal_success:'สำเร็จ', modal_error:'ข้อผิดพลาด',
   },
   'zh-cn': {
     label_from:'发件人（用户名）', label_display:'显示名称',
@@ -1400,12 +1380,43 @@ function isBodyEmpty() {
 // ══════════════════════════════════════════════════════════════════════════════
 // STATUS
 // ══════════════════════════════════════════════════════════════════════════════
+// MODAL
+// ══════════════════════════════════════════════════════════════════════════════
+const modalOverlay = document.getElementById('modalOverlay');
+const modalIcon = document.getElementById('modalIcon');
+const modalTitle = document.getElementById('modalTitle');
+const modalMessage = document.getElementById('modalMessage');
+const modalClose = document.getElementById('modalClose');
+
+function showModal(ok, title, msg) {
+  const svg = ok
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
+  
+  modalIcon.className = 'modal-icon ' + (ok ? 'success' : 'error');
+  modalIcon.innerHTML = svg;
+  modalTitle.textContent = title;
+  modalMessage.textContent = msg;
+  modalOverlay.classList.add('show');
+}
+
+modalClose.addEventListener('click', () => {
+  modalOverlay.classList.remove('show');
+});
+
+modalOverlay.addEventListener('click', (e) => {
+  if (e.target === modalOverlay) modalOverlay.classList.remove('show');
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// STATUS (legacy, unused)
+// ══════════════════════════════════════════════════════════════════════════════
 const status = document.getElementById('status');
 
 function showStatus(ok, msg) {
-  status.textContent   = msg;
-  status.className     = ok ? 'ok' : 'err';
-  status.style.display = 'block';
+  // Now using modal instead
+  const title = ok ? t('modal_success') : t('modal_error');
+  showModal(ok, title, msg);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1471,45 +1482,6 @@ document.getElementById('fileInput').addEventListener('change', e => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// API KEY & AUTH
-// ══════════════════════════════════════════════════════════════════════════════
-const STORAGE_KEY = 'mailgunfire_apikey';
-
-function getApiKey() {
-  return localStorage.getItem(STORAGE_KEY) || '';
-}
-
-async function computeSignature(timestamp, apiKey) {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw', enc.encode(apiKey),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false, ['sign']
-  );
-  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(timestamp));
-  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-(function initApiKey() {
-  const savedKey = getApiKey();
-  if (savedKey) {
-    apiKeySection.style.display = 'block';
-    apiKeyInput.value = savedKey;
-  } else {
-    apiKeySection.style.display = 'block';
-  }
-
-  apiKeyInput.addEventListener('change', () => {
-    const key = apiKeyInput.value.trim();
-    if (key) {
-      localStorage.setItem(STORAGE_KEY, key);
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  });
-})();
-
-// ══════════════════════════════════════════════════════════════════════════════
 // SUBMIT
 // ══════════════════════════════════════════════════════════════════════════════
 const form    = document.getElementById('mailForm');
@@ -1554,15 +1526,7 @@ form.addEventListener('submit', async e => {
     attachments: attachments.length ? attachments : undefined,
   };
 
-  const apiKey = getApiKey();
   const headers = { 'Content-Type': 'application/json' };
-
-  if (apiKey) {
-    const timestamp = Math.floor(Date.now() / 1000).toString();
-    const signature = await computeSignature(timestamp, apiKey);
-    headers['X-Timestamp'] = timestamp;
-    headers['X-Signature'] = signature;
-  }
 
   try {
     const res  = await fetch(window.location.pathname, {
