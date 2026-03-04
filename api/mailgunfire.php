@@ -20,6 +20,28 @@
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
+/**
+ * RFC 2047 encoded-word encoding for mail headers.
+ * Splits text into ≤45-byte UTF-8 chunks so each encoded word stays under
+ * the RFC 2047 limit of 75 characters:
+ *   =?UTF-8?B? (10) + base64(45 bytes)=60 chars + ?= (2) = 72 chars ✓
+ */
+function encode_mime_header_value(string $str): string {
+    if (!preg_match('/[^\x09\x20-\x7E]/', $str)) return $str; // pure ASCII — no encoding
+    $parts = [];
+    while ($str !== '') {
+        $chunk = '';
+        foreach (preg_split('//u', $str, -1, PREG_SPLIT_NO_EMPTY) as $ch) {
+            if (strlen($chunk . $ch) > 45) break;
+            $chunk .= $ch;
+        }
+        if ($chunk === '') $chunk = mb_substr($str, 0, 1, 'UTF-8'); // safety: always advance
+        $parts[] = '=?UTF-8?B?' . base64_encode($chunk) . '?=';
+        $str = substr($str, strlen($chunk));
+    }
+    return implode("\r\n ", $parts); // RFC 2047 folding
+}
+
 function load_config(): array {
     $path = __DIR__ . '/config.json';
     if (!file_exists($path)) {
@@ -102,22 +124,27 @@ function send_email(array $cfg, string $sender, string $display, array $to, arra
 
     $headers  = "MIME-Version: 1.0\r\n";
     $headers .= "Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n";
-    $from_addr = $display ? "=?UTF-8?B?" . base64_encode($display) . "?= <$from_email>" : $from_email;
+    $from_addr = $display
+        ? encode_mime_header_value($display) . " <$from_email>"
+        : $from_email;
     $headers .= "From: $from_addr\r\n";
     $headers .= "To: " . format_address_list($to) . "\r\n";
     if (!empty($cc)) $headers .= "Cc: " . format_address_list($cc) . "\r\n";
-    $headers .= "Subject: =?UTF-8?B?" . base64_encode($subject) . "?=\r\n";
+    $headers .= "Subject: " . encode_mime_header_value($subject) . "\r\n";
+
+    $alt_boundary = 'alt_' . $boundary;
 
     $body  = "--$boundary\r\n";
-    $body .= "Content-Type: multipart/alternative; boundary=\"_alt_$boundary\"\r\n";
-    
-    $body .= "--_$boundary\r\n";
+    $body .= "Content-Type: multipart/alternative; boundary=\"$alt_boundary\"\r\n";
+    $body .= "\r\n";  // blank line: required separator between part-headers and part-body
+
+    $body .= "--$alt_boundary\r\n";
     $body .= "Content-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n";
     $body .= chunk_split(base64_encode($md_body)) . "\r\n";
-    $body .= "--_$boundary\r\n";
+    $body .= "--$alt_boundary\r\n";
     $body .= "Content-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n";
     $body .= chunk_split(base64_encode($html_body)) . "\r\n";
-    $body .= "--_$boundary--\r\n";
+    $body .= "--$alt_boundary--\r\n";
 
     foreach ($attachments as $att) {
         $filename = $att['filename'] ?? 'attachment';
