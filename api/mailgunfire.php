@@ -739,6 +739,59 @@ input[type="email"]:focus {
   border: none; padding: 0; margin-left: .1rem;
 }
 .att-chip .remove:hover { background: rgba(59,130,246,.25); }
+
+/* ── Modal ─────────────────────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.5);
+  display: none; align-items: center; justify-content: center;
+  z-index: 1000; backdrop-filter: blur(2px);
+}
+.modal-overlay.show { display: flex; }
+
+.modal-content {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 2rem 2.5rem;
+  text-align: center;
+  max-width: 400px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.3);
+  animation: modalIn .2s ease-out;
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(.95) translateY(-10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.modal-icon {
+  width: 56px; height: 56px; margin: 0 auto 1rem;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+}
+.modal-icon.success {
+  background: var(--success-bg);
+  color: var(--success-fg);
+}
+.modal-icon.error {
+  background: var(--error-bg);
+  color: var(--error-fg);
+}
+.modal-icon svg { width: 28px; height: 28px; }
+
+.modal-title {
+  font-size: 1.2rem; font-weight: 600;
+  margin-bottom: .5rem; color: var(--text);
+}
+
+.modal-message {
+  font-size: .9rem; color: var(--text-muted);
+  margin-bottom: 1.5rem; line-height: 1.5;
+  word-break: break-word;
+}
+
+.modal-btn {
+  min-width: 100px;
+}
 </style>
 </head>
 <body>
@@ -768,8 +821,6 @@ input[type="email"]:focus {
   </div>
 
 <form id="mailForm">
-
-  <div class="section-divider"></div>
 
     <!-- To -->
     <div>
