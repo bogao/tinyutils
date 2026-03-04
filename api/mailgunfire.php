@@ -32,10 +32,17 @@ function load_config(): array {
         die(json_encode(['ok' => false, 'error' => '"mailgunfire" key missing in config.json']));
     }
     $cfg = $all['mailgunfire'];
+
+    $env_domain = getenv('MAILGUNFIRE_DOMAIN');
+    $env_login = getenv('MAILGUNFIRE_LOGIN');
+    $env_display = getenv('MAILGUNFIRE_DISPLAY');
     $env_password = getenv('MAILGUNFIRE_PASSWORD');
-    if ($env_password !== false && $env_password !== '') {
-        $cfg['password'] = $env_password;
-    }
+
+    if ($env_domain !== false && $env_domain !== '') $cfg['domain'] = $env_domain;
+    if ($env_login !== false && $env_login !== '') $cfg['login'] = $env_login;
+    if ($env_display !== false) $cfg['display'] = $env_display;
+    if ($env_password !== false && $env_password !== '') $cfg['password'] = $env_password;
+
     foreach (['domain', 'login', 'password', 'method'] as $k) {
         if (empty($cfg[$k])) {
             http_response_code(500);
