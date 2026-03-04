@@ -141,7 +141,34 @@ function markdown_to_html(string $md): string {
     if ($in_ol) $out_lines[] = '</ol>';
     $h = implode("\n", $out_lines);
 
-    // ── 8. Build paragraph blocks ──────────────────────────────────────────
+    // ── 8. Tables ──────────────────────────────────────────────────────────
+    $parse_cells = function (string $row): array {
+        // Strip leading/trailing pipes, split on |, trim each cell
+        return array_values(array_filter(
+            array_map('trim', explode('|', trim($row, " \t|"))),
+            fn($c) => $c !== ''
+        ));
+    };
+    $h = preg_replace_callback(
+        '/^(\|[^\n]+\|)[ \t]*\n\|[-| :]+\|[ \t]*\n((?:\|[^\n]+\|[ \t]*\n?)*)/m',
+        function ($m) use ($parse_cells) {
+            $tdStyle = ' style="border:1px solid #cbd5e1;padding:.45em .7em;text-align:left"';
+            $thStyle = ' style="border:1px solid #cbd5e1;padding:.45em .7em;background:#f8fafc;font-weight:600;text-align:left"';
+            $ths = implode('', array_map(fn($c) => "<th{$thStyle}>$c</th>", $parse_cells($m[1])));
+            $rows = '';
+            foreach (preg_split('/\n/', trim($m[2])) as $row) {
+                $row = trim($row);
+                if ($row === '') continue;
+                $tds = implode('', array_map(fn($c) => "<td{$tdStyle}>$c</td>", $parse_cells($row)));
+                $rows .= "<tr>$tds</tr>\n";
+            }
+            $tblStyle = ' style="border-collapse:collapse;width:100%;margin:1em 0;font-size:.9em"';
+            return "<table{$tblStyle}>\n<thead><tr>$ths</tr></thead>\n<tbody>\n$rows</tbody>\n</table>";
+        },
+        $h
+    );
+
+    // ── 9. Build paragraph blocks ──────────────────────────────────────────
     $blocks = preg_split('/\n{2,}/', trim($h));
     $parts  = [];
     foreach ($blocks as $block) {
@@ -149,7 +176,7 @@ function markdown_to_html(string $md): string {
         if ($block === '') continue;
         if (preg_match('/^\x00CB\d+\x00$/', $block)) {
             $parts[] = $block; // code block placeholder — restored below
-        } elseif (preg_match('/^<(h[1-6]|ul|ol|blockquote|hr|pre)/', $block)) {
+        } elseif (preg_match('/^<(h[1-6]|ul|ol|table|blockquote|hr|pre)/', $block)) {
             $parts[] = $block;
         } else {
             $parts[] = '<p>' . nl2br($block) . '</p>';
@@ -157,7 +184,7 @@ function markdown_to_html(string $md): string {
     }
     $result = implode("\n", $parts);
 
-    // ── 9. Restore code blocks ─────────────────────────────────────────────
+    // ── 10. Restore code blocks ────────────────────────────────────────────
     foreach ($code_blocks as $idx => $cb) {
         $result = str_replace("\x00CB{$idx}\x00", $cb, $result);
     }
@@ -166,6 +193,33 @@ function markdown_to_html(string $md): string {
 
 function format_address_list(array $addrs): string {
     return implode(', ', array_filter(array_map('trim', $addrs)));
+}
+
+/**
+ * Encode a filename for use inside a MIME quoted parameter value.
+ * Uses RFC 2047 B-encoding which is universally supported by email clients
+ * (Gmail, Outlook, Thunderbird, Apple Mail).
+ * Splits into ≤45-byte chunks so each encoded word stays under 75 chars.
+ */
+function encode_mime_filename(string $filename): string {
+    if (!preg_match('/[^\x20-\x7E]/', $filename)) {
+        // Pure ASCII — simple quoting
+        return '"' . str_replace(['"', '\\'], ['\\"', '\\\\'], $filename) . '"';
+    }
+    $parts = [];
+    $f = $filename;
+    while ($f !== '') {
+        $chunk = '';
+        foreach (preg_split('//u', $f, -1, PREG_SPLIT_NO_EMPTY) as $ch) {
+            if (strlen($chunk . $ch) > 45) break;
+            $chunk .= $ch;
+        }
+        if ($chunk === '') $chunk = mb_substr($f, 0, 1, 'UTF-8');
+        $parts[] = '=?UTF-8?B?' . base64_encode($chunk) . '?=';
+        $f = substr($f, strlen($chunk));
+    }
+    // RFC 2822 header folding between encoded words (CRLF + tab)
+    return '"' . implode("\r\n\t", $parts) . '"';
 }
 
 function send_email(array $cfg, string $sender, string $display, array $to, array $cc, array $bcc, string $subject, string $md_body, array $attachments = []): void {
@@ -205,19 +259,10 @@ function send_email(array $cfg, string $sender, string $display, array $to, arra
         $content  = $att['content'];
         $mime     = $att['mime'] ?? 'application/octet-stream';
         $body .= "--$boundary\r\n";
-        // RFC 2231 / RFC 5987: encode non-ASCII filenames
-        if (preg_match('/[^\x20-\x7E]/', $filename)) {
-            $ascii_name = preg_replace('/[^\x20-\x7E]/', '_', $filename);
-            $encoded    = rawurlencode($filename);
-            $name_hdr   = '"' . $ascii_name . '"; name*=UTF-8\'\'' . $encoded;
-            $disp_hdr   = '"' . $ascii_name . '"; filename*=UTF-8\'\'' . $encoded;
-        } else {
-            $q          = str_replace(['"', '\\'], ['\\"', '\\\\'], $filename);
-            $name_hdr   = '"' . $q . '"';
-            $disp_hdr   = '"' . $q . '"';
-        }
-        $body .= "Content-Type: $mime; name=$name_hdr\r\n";
-        $body .= "Content-Disposition: attachment; filename=$disp_hdr\r\n";
+        // RFC 2047 B-encoding for name/filename parameters (maximum client compatibility)
+        $fname = encode_mime_filename($filename);
+        $body .= "Content-Type: $mime; name=$fname\r\n";
+        $body .= "Content-Disposition: attachment; filename=$fname\r\n";
         $body .= "Content-Transfer-Encoding: base64\r\n\r\n";
         $body .= chunk_split($content) . "\r\n";
     }
@@ -765,6 +810,10 @@ input[type="email"]:focus {
 #wysiwygPane hr { border: none; border-top: 1px solid var(--border); margin: .8em 0; }
 #wysiwygPane strong { color: var(--text); font-weight: 700; }
 #wysiwygPane em { color: var(--text-dim); font-style: italic; }
+#wysiwygPane table { border-collapse: collapse; width: 100%; margin: .8em 0; font-size: .88em; }
+#wysiwygPane th, #wysiwygPane td { border: 1px solid var(--border); padding: .4em .65em; text-align: left; }
+#wysiwygPane th { background: var(--surface3); font-weight: 600; }
+#wysiwygPane tr:nth-child(even) td { background: var(--surface2); }
 
 /* Raw Markdown textarea */
 #mdPane {
@@ -1384,10 +1433,24 @@ function mdToHtml(md) {
   if (inOl) out.push('</ol>');
   h = out.join('\n');
 
+  // Tables
+  const parseCells = row => row.replace(/^\s*\||\|\s*$/g, '').split('|').map(c => c.trim());
+  h = h.replace(/^(\|[^\n]+\|)[ \t]*\n\|[-| :]+\|[ \t]*\n((?:\|[^\n]+\|[ \t]*\n?)*)/gm,
+    (_, header, rows) => {
+      const thStyle = ' style="border:1px solid #cbd5e1;padding:.45em .7em;background:#f8fafc;font-weight:600;text-align:left"';
+      const tdStyle = ' style="border:1px solid #cbd5e1;padding:.45em .7em;text-align:left"';
+      const ths = parseCells(header).map(c => `<th${thStyle}>${c}</th>`).join('');
+      const trs = rows.trim().split('\n').filter(r => r.trim()).map(r =>
+        '<tr>' + parseCells(r).map(c => `<td${tdStyle}>${c}</td>`).join('') + '</tr>'
+      ).join('\n');
+      return `<table style="border-collapse:collapse;width:100%;margin:1em 0;font-size:.9em">\n<thead><tr>${ths}</tr></thead>\n<tbody>\n${trs}\n</tbody>\n</table>`;
+    }
+  );
+
   h = h.split(/\n{2,}/).map(b => {
     b = b.trim(); if (!b) return '';
     if (/^\x00CB\d+\x00$/.test(b)) return b;
-    if (/^<(h[1-6]|ul|ol|blockquote|hr|pre)/.test(b)) return b;
+    if (/^<(h[1-6]|ul|ol|table|blockquote|hr|pre)/.test(b)) return b;
     return '<p>' + b.replace(/\n/g,'<br>') + '</p>';
   }).join('\n');
 
