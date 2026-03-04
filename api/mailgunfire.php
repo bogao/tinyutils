@@ -308,7 +308,8 @@ body {
   gap: 1rem;
 }
 
-.card-header-left { display: flex; align-items: center; gap: .9rem; }
+.card-header-left { display: flex; align-items: center; gap: .9rem; flex-shrink: 1; min-width: 0; }
+.card-header-left > * { flex-shrink: 0; }
 
 .logo-icon {
   width: 38px; height: 38px;
@@ -904,6 +905,21 @@ input[type="email"]:focus {
 
 <form id="mailForm">
 
+    <!-- From (Sender + Display Name) -->
+    <div class="row">
+      <div>
+        <label class="field-label" data-i18n="label_from">FROM (USERNAME)</label>
+        <div class="input-group">
+          <input type="text" id="sender" value="<?= $default_sender ?>" data-i18n-ph="ph_from">
+          <span class="suffix">@<?= $domain ?></span>
+        </div>
+      </div>
+      <div>
+        <label class="field-label" for="display" data-i18n="label_display">DISPLAY NAME</label>
+        <input type="text" id="display" value="<?= $default_display ?>" data-i18n-ph="ph_display">
+      </div>
+    </div>
+
     <!-- To -->
     <div>
       <label class="field-label" data-i18n="label_to">TO</label>
@@ -1037,7 +1053,7 @@ const LANG = {
     label_to:'TO', label_cc:'CC', label_bcc:'BCC',
     label_subject:'SUBJECT', label_body:'BODY',
     label_attachments:'ATTACHMENTS', label_apikey:'API KEY',
-    ph_display:'Optional', ph_email:'address@example.com — Enter to add',
+    ph_display:'Optional', ph_from:'noreply', ph_email:'address@example.com — Enter to add',
     ph_subject:'Email subject', ph_apikey:'Enter your API key',
     ph_body:'Compose your message here…',
     ph_body_md:'Write in **Markdown**…',
@@ -1058,7 +1074,7 @@ const LANG = {
     label_to:'宛先', label_cc:'CC', label_bcc:'BCC',
     label_subject:'件名', label_body:'本文', label_attachments:'添付ファイル',
     label_apikey:'APIキー',
-    ph_display:'任意', ph_email:'address@example.com — Enter で追加',
+    ph_display:'任意', ph_from:'noreply', ph_email:'address@example.com — Enter で追加',
     ph_subject:'メールの件名', ph_apikey:'APIキーを入力',
     ph_body:'ここにメッセージを入力してください…',
     ph_body_md:'**Markdown** で記述…',
@@ -1079,7 +1095,7 @@ const LANG = {
     label_to:'ถึง', label_cc:'สำเนา (CC)', label_bcc:'สำเนาลับ (BCC)',
     label_subject:'หัวเรื่อง', label_body:'เนื้อหา', label_attachments:'ไฟล์แนบ',
     label_apikey:'API Key',
-    ph_display:'ไม่บังคับ', ph_email:'address@example.com — กด Enter เพื่อเพิ่ม',
+    ph_display:'ไม่บังคับ', ph_from:'noreply', ph_email:'address@example.com — กด Enter เพื่อเพิ่ม',
     ph_subject:'หัวเรื่องล', ph_apอีเมikey:'ใส่ API key',
     ph_body:'เขียนข้อความที่นี่…',
     ph_body_md:'เขียนด้วย **Markdown**…',
@@ -1100,7 +1116,7 @@ const LANG = {
     label_to:'收件人', label_cc:'抄送', label_bcc:'密送',
     label_subject:'主题', label_body:'正文', label_attachments:'附件',
     label_apikey:'API 密钥',
-    ph_display:'可选', ph_email:'address@example.com — 按 Enter 添加',
+    ph_display:'可选', ph_from:'noreply', ph_email:'address@example.com — 按 Enter 添加',
     ph_subject:'邮件主题', ph_apikey:'输入 API 密钥',
     ph_body:'在此撰写邮件…',
     ph_body_md:'用 **Markdown** 编写…',
@@ -1114,13 +1130,14 @@ const LANG = {
     err_apikey:'请输入 API 密钥', err_nosign:'认证失败',
     sending:'发送中…',
     hdr_sub:'通过 Mailgun SMTP 发送 — 域名：',
+    modal_ok:'OK', modal_success:'成功', modal_error:'错误',
   },
   'zh-tw': {
     label_from:'寄件人（使用者名稱）', label_display:'顯示名稱',
     label_to:'收件人', label_cc:'副本', label_bcc:'密件副本',
     label_subject:'主旨', label_body:'內文', label_attachments:'附件',
     label_apikey:'API 金鑰',
-    ph_display:'選填', ph_email:'address@example.com — 按 Enter 新增',
+    ph_display:'選填', ph_from:'noreply', ph_email:'address@example.com — 按 Enter 新增',
     ph_subject:'郵件主旨', ph_apikey:'輸入 API 金鑰',
     ph_body:'在此撰寫郵件…',
     ph_body_md:'以 **Markdown** 撰寫…',
@@ -1134,94 +1151,7 @@ const LANG = {
     err_apikey:'請輸入 API 金鑰', err_nosign:'認證失敗',
     sending:'傳送中…',
     hdr_sub:'透過 Mailgun SMTP 傳送 — 網域：',
-  },
-  th: {
-    label_from:'ผู้ส่ง (ชื่อผู้ใช้)', label_display:'ชื่อที่แสดง',
-    label_to:'ถึง', label_cc:'สำเนา (CC)', label_bcc:'สำเนาลับ (BCC)',
-    label_subject:'หัวเรื่อง', label_body:'เนื้อหา', label_attachments:'ไฟล์แนบ',
-    ph_display:'ไม่บังคับ', ph_email:'address@example.com — กด Enter เพื่อเพิ่ม',
-    ph_subject:'หัวเรื่องอีเมล',
-    ph_body:'เขียนข้อความที่นี่…',
-    ph_body_md:'เขียนด้วย **Markdown**…',
-    hint_email:'กด Enter หรือจุลภาคหลังจากแต่ละที่อยู่',
-    hint_attach:'ไฟล์สูงสุด 3MB',
-    mode_rich:'รูปแบบ', mode_md:'Markdown',
-    btn_clear:'ล้าง', btn_send:'ส่งอีเมล', btn_attach:'เพิ่มไฟล์',
-    err_no_to:'กรุณาเพิ่มผู้รับอย่างน้อยหนึ่งคน',
-    err_network:'ข้อผิดพลาดเครือข่าย: ',
-    err_apikey:'กรุณาใส่ API key', err_nosign:'การยืนยันล้มเหลว',
-    sending:'กำลังส่ง…',
-    hdr_sub:'ส่งผ่าน Mailgun SMTP — โดเมน: ',
-  },
-  'zh-cn': {
-    label_from:'发件人（用户名）', label_display:'显示名称',
-    label_to:'收件人', label_cc:'抄送', label_bcc:'密送',
-    label_subject:'主题', label_body:'正文', label_attachments:'附件',
-    ph_display:'可选', ph_email:'address@example.com — 按 Enter 添加',
-    ph_subject:'邮件主题',
-    ph_body:'在此撰写邮件…',
-    ph_body_md:'用 **Markdown** 编写…',
-    hint_email:'每个地址后按 Enter 或逗号确认。',
-    hint_attach:'单个文件最大 3MB',
-    mode_rich:'富文本', mode_md:'Markdown',
-    btn_clear:'清空', btn_send:'发送邮件', btn_attach:'添加文件',
-    err_no_to:'请至少添加一个收件人。',
-    err_network:'网络错误：',
-    sending:'发送中…',
-    hdr_sub:'通过 Mailgun SMTP 发送 — 域名：',
-  },
-  'zh-tw': {
-    label_from:'寄件人（使用者名稱）', label_display:'顯示名稱',
-    label_to:'收件人', label_cc:'副本', label_bcc:'密件副本',
-    label_subject:'主旨', label_body:'內文', label_attachments:'附件',
-    ph_display:'選填', ph_email:'address@example.com — 按 Enter 新增',
-    ph_subject:'郵件主旨',
-    ph_body:'在此撰寫郵件…',
-    ph_body_md:'以 **Markdown** 撰寫…',
-    hint_email:'每個地址後按 Enter 或逗號確認。',
-    hint_attach:'單一檔案最大 3MB',
-    mode_rich:'富文字', mode_md:'Markdown',
-    btn_clear:'清除', btn_send:'寄送郵件', btn_attach:'新增檔案',
-    err_no_to:'請至少新增一位收件人。',
-    err_network:'網路錯誤：',
-    sending:'傳送中…',
-    hdr_sub:'透過 Mailgun SMTP 傳送 — 網域：',
-  },
-  'zh-cn': {
-    label_from:'发件人（用户名）', label_display:'显示名称',
-    label_to:'收件人', label_cc:'抄送', label_bcc:'密送',
-    label_subject:'主题', label_body:'正文', label_attachments:'附件',
-    label_apikey:'API 密钥',
-    ph_display:'可选', ph_email:'address@example.com — 按 Enter 添加',
-    ph_subject:'邮件主题', ph_apikey:'输入 API 密钥',
-    ph_body:'在此撰写邮件…',
-    ph_body_md:'用 **Markdown** 编写…',
-    hint_email:'每个地址后按 Enter 或逗号确认。',
-    hint_attach:'单个文件最大 3MB',
-    hint_apikey:'本地存储，不会发送到服务器',
-    mode_rich:'富文本', mode_md:'Markdown',
-    btn_clear:'清空', btn_send:'发送邮件', btn_attach:'添加文件',
-    err_no_to:'请至少添加一个收件人。',
-    err_network:'网络错误：',
-    err_apikey:'请输入 API 密钥', err_nosign:'认证失败',
-    sending:'发送中…',
-    hdr_sub:'通过 Mailgun SMTP 发送 — 域名：',
-  },
-  'zh-tw': {
-    label_from:'寄件人（使用者名稱）', label_display:'顯示名稱',
-    label_to:'收件人', label_cc:'副本', label_bcc:'密件副本',
-    label_subject:'主旨', label_body:'內文',
-    ph_display:'選填', ph_email:'address@example.com — 按 Enter 新增',
-    ph_subject:'郵件主旨',
-    ph_body:'在此撰寫郵件…',
-    ph_body_md:'以 **Markdown** 撰寫…',
-    hint_email:'每個地址後按 Enter 或逗號確認。',
-    mode_rich:'富文字', mode_md:'Markdown',
-    btn_clear:'清除', btn_send:'寄送郵件',
-    err_no_to:'請至少新增一位收件人。',
-    err_network:'網路錯誤：',
-    sending:'傳送中…',
-    hdr_sub:'透過 Mailgun SMTP 傳送 — 網域：',
+    modal_ok:'OK', modal_success:'成功', modal_error:'錯誤',
   },
 };
 
