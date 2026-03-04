@@ -173,10 +173,24 @@ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 if ($method === 'POST') {
     $utils_api_key = getenv('UTILS_API_KEY');
     if ($utils_api_key) {
-        $input_key = $_SERVER['HTTP_X_API_KEY'] ?? '';
-        if ($input_key !== $utils_api_key) {
+        $timestamp = $_SERVER['HTTP_X_TIMESTAMP'] ?? '';
+        $signature = $_SERVER['HTTP_X_SIGNATURE'] ?? '';
+
+        if (!$timestamp || !$signature) {
             http_response_code(401);
-            die(json_encode(['ok' => false, 'error' => 'Unauthorized']));
+            die(json_encode(['ok' => false, 'error' => 'Missing auth headers']));
+        }
+
+        $ts = (int)$timestamp;
+        if (abs(time() - $ts) > 300) {
+            http_response_code(401);
+            die(json_encode(['ok' => false, 'error' => 'Expired request']));
+        }
+
+        $expected = hash_hmac('sha256', $timestamp, $utils_api_key);
+        if (!hash_equals($expected, $signature)) {
+            http_response_code(401);
+            die(json_encode(['ok' => false, 'error' => 'Invalid signature']));
         }
     }
 
@@ -748,6 +762,9 @@ input[type="email"]:focus {
   border: none; padding: 0; margin-left: .1rem;
 }
 .att-chip .remove:hover { background: rgba(59,130,246,.25); }
+
+.api-key-input { width: 100%; max-width: 320px; }
+#apiKeySection { display: none; }
 </style>
 </head>
 <body>
@@ -776,22 +793,13 @@ input[type="email"]:focus {
     </div>
   </div>
 
-  <form id="mailForm">
+<form id="mailForm">
 
-    <!-- Sender row -->
-    <div class="row">
-      <div>
-        <label class="field-label" for="sender" data-i18n="label_from">FROM (USERNAME)</label>
-        <div class="input-group">
-          <input type="text" id="sender" name="sender" value="<?= $default_sender ?>" required>
-          <span class="suffix">@<?= $domain ?></span>
-        </div>
-      </div>
-      <div>
-        <label class="field-label" for="display" data-i18n="label_display">DISPLAY NAME</label>
-        <input type="text" id="display" name="display" value="<?= $default_display ?>"
-               data-i18n-ph="ph_display">
-      </div>
+    <!-- API Key (stored locally) -->
+    <div id="apiKeySection">
+      <label class="field-label" for="apiKey" data-i18n="label_apikey">API KEY</label>
+      <input type="password" id="apiKey" class="api-key-input" data-i18n-ph="ph_apikey">
+      <p class="hint" data-i18n="hint_apikey">Saved locally, never sent to server</p>
     </div>
 
     <div class="section-divider"></div>
@@ -908,17 +916,19 @@ const LANG = {
     label_from:'FROM (USERNAME)', label_display:'DISPLAY NAME',
     label_to:'TO', label_cc:'CC', label_bcc:'BCC',
     label_subject:'SUBJECT', label_body:'BODY',
-    label_attachments:'ATTACHMENTS',
+    label_attachments:'ATTACHMENTS', label_apikey:'API KEY',
     ph_display:'Optional', ph_email:'address@example.com — Enter to add',
-    ph_subject:'Email subject',
+    ph_subject:'Email subject', ph_apikey:'Enter your API key',
     ph_body:'Compose your message here…',
     ph_body_md:'Write in **Markdown**…',
     hint_email:'Press Enter or comma after each address.',
     hint_attach:'Max 3MB per file',
+    hint_apikey:'Saved locally, never sent to server',
     mode_rich:'Rich', mode_md:'Markdown',
     btn_clear:'Clear', btn_send:'Send Email', btn_attach:'Add Files',
     err_no_to:'Please add at least one To recipient.',
     err_network:'Network error: ',
+    err_apikey:'Please enter API key', err_nosign:'Auth failed',
     sending:'Sending…',
     hdr_sub:'Send via Mailgun SMTP — domain: ',
   },
@@ -926,18 +936,81 @@ const LANG = {
     label_from:'差出人（ユーザー名）', label_display:'表示名',
     label_to:'宛先', label_cc:'CC', label_bcc:'BCC',
     label_subject:'件名', label_body:'本文', label_attachments:'添付ファイル',
+    label_apikey:'APIキー',
     ph_display:'任意', ph_email:'address@example.com — Enter で追加',
-    ph_subject:'メールの件名',
+    ph_subject:'メールの件名', ph_apikey:'APIキーを入力',
     ph_body:'ここにメッセージを入力してください…',
     ph_body_md:'**Markdown** で記述…',
     hint_email:'各アドレスの後に Enter またはカンマを押してください。',
     hint_attach:'ファイル最大3MB',
+    hint_apikey:'ローカルに保存されます',
     mode_rich:'リッチ', mode_md:'Markdown',
     btn_clear:'クリア', btn_send:'送信', btn_attach:'ファイルを追加',
     err_no_to:'宛先を1件以上追加してください。',
     err_network:'ネットワークエラー: ',
+    err_apikey:'APIキーを入力してください', err_nosign:'認証失敗',
     sending:'送信中…',
     hdr_sub:'Mailgun SMTP 経由で送信 — ドメイン: ',
+  },
+  th: {
+    label_from:'ผู้ส่ง (ชื่อผู้ใช้)', label_display:'ชื่อที่แสดง',
+    label_to:'ถึง', label_cc:'สำเนา (CC)', label_bcc:'สำเนาลับ (BCC)',
+    label_subject:'หัวเรื่อง', label_body:'เนื้อหา', label_attachments:'ไฟล์แนบ',
+    label_apikey:'API Key',
+    ph_display:'ไม่บังคับ', ph_email:'address@example.com — กด Enter เพื่อเพิ่ม',
+    ph_subject:'หัวเรื่องล', ph_apอีเมikey:'ใส่ API key',
+    ph_body:'เขียนข้อความที่นี่…',
+    ph_body_md:'เขียนด้วย **Markdown**…',
+    hint_email:'กด Enter หรือจุลภาคหลังจากแต่ละที่อยู่',
+    hint_attach:'ไฟล์สูงสุด 3MB',
+    hint_apikey:'จัดเก็บในเครื่อง',
+    mode_rich:'รูปแบบ', mode_md:'Markdown',
+    btn_clear:'ล้าง', btn_send:'ส่งอีเมล', btn_attach:'เพิ่มไฟล์',
+    err_no_to:'กรุณาเพิ่มผู้รับอย่างน้อยหนึ่งคน',
+    err_network:'ข้อผิดพลาดเ�ครือข่าย: ',
+    err_apikey:'กรุณาใส่ API key', err_nosign:'การยืนยันล้มเหลว',
+    sending:'กำลังส่ง…',
+    hdr_sub:'ส่งผ่าน Mailgun SMTP — โดเมน: ',
+  },
+  'zh-cn': {
+    label_from:'发件人（用户名）', label_display:'显示名称',
+    label_to:'收件人', label_cc:'抄送', label_bcc:'密送',
+    label_subject:'主题', label_body:'正文', label_attachments:'附件',
+    label_apikey:'API 密钥',
+    ph_display:'可选', ph_email:'address@example.com — 按 Enter 添加',
+    ph_subject:'邮件主题', ph_apikey:'输入 API 密钥',
+    ph_body:'在此撰写邮件…',
+    ph_body_md:'用 **Markdown** 编写…',
+    hint_email:'每个地址后按 Enter 或逗号确认。',
+    hint_attach:'单个文件最大 3MB',
+    hint_apikey:'本地存储，不会发送到服务器',
+    mode_rich:'富文本', mode_md:'Markdown',
+    btn_clear:'清空', btn_send:'发送邮件', btn_attach:'添加文件',
+    err_no_to:'请至少添加一个收件人。',
+    err_network:'网络错误：',
+    err_apikey:'请输入 API 密钥', err_nosign:'认证失败',
+    sending:'发送中…',
+    hdr_sub:'通过 Mailgun SMTP 发送 — 域名：',
+  },
+  'zh-tw': {
+    label_from:'寄件人（使用者名稱）', label_display:'顯示名稱',
+    label_to:'收件人', label_cc:'副本', label_bcc:'密件副本',
+    label_subject:'主旨', label_body:'內文', label_attachments:'附件',
+    label_apikey:'API 金鑰',
+    ph_display:'選填', ph_email:'address@example.com — 按 Enter 新增',
+    ph_subject:'郵件主旨', ph_apikey:'輸入 API 金鑰',
+    ph_body:'在此撰寫郵件…',
+    ph_body_md:'以 **Markdown** 撰寫…',
+    hint_email:'每個地址後按 Enter 或逗號確認。',
+    hint_attach:'單一檔案最大 3MB',
+    hint_apikey:'本地儲存，不會傳送至伺服器',
+    mode_rich:'富文字', mode_md:'Markdown',
+    btn_clear:'清除', btn_send:'寄送郵件', btn_attach:'新增檔案',
+    err_no_to:'請至少新增一位收件人。',
+    err_network:'網路錯誤：',
+    err_apikey:'請輸入 API 金鑰', err_nosign:'認證失敗',
+    sending:'傳送中…',
+    hdr_sub:'透過 Mailgun SMTP 傳送 — 網域：',
   },
   th: {
     label_from:'ผู้ส่ง (ชื่อผู้ใช้)', label_display:'ชื่อที่แสดง',
@@ -953,6 +1026,7 @@ const LANG = {
     btn_clear:'ล้าง', btn_send:'ส่งอีเมล', btn_attach:'เพิ่มไฟล์',
     err_no_to:'กรุณาเพิ่มผู้รับอย่างน้อยหนึ่งคน',
     err_network:'ข้อผิดพลาดเครือข่าย: ',
+    err_apikey:'กรุณาใส่ API key', err_nosign:'การยืนยันล้มเหลว',
     sending:'กำลังส่ง…',
     hdr_sub:'ส่งผ่าน Mailgun SMTP — โดเมน: ',
   },
@@ -990,35 +1064,23 @@ const LANG = {
     sending:'傳送中…',
     hdr_sub:'透過 Mailgun SMTP 傳送 — 網域：',
   },
-  th: {
-    label_from:'ผู้ส่ง (ชื่อผู้ใช้)', label_display:'ชื่อที่แสดง',
-    label_to:'ถึง', label_cc:'สำเนา (CC)', label_bcc:'สำเนาลับ (BCC)',
-    label_subject:'หัวเรื่อง', label_body:'เนื้อหา',
-    ph_display:'ไม่บังคับ', ph_email:'address@example.com — กด Enter เพื่อเพิ่ม',
-    ph_subject:'หัวเรื่องอีเมล',
-    ph_body:'เขียนข้อความที่นี่…',
-    ph_body_md:'เขียนด้วย **Markdown**…',
-    hint_email:'กด Enter หรือจุลภาคหลังจากแต่ละที่อยู่',
-    mode_rich:'รูปแบบ', mode_md:'Markdown',
-    btn_clear:'ล้าง', btn_send:'ส่งอีเมล',
-    err_no_to:'กรุณาเพิ่มผู้รับอย่างน้อยหนึ่งคน',
-    err_network:'ข้อผิดพลาดเครือข่าย: ',
-    sending:'กำลังส่ง…',
-    hdr_sub:'ส่งผ่าน Mailgun SMTP — โดเมน: ',
-  },
   'zh-cn': {
     label_from:'发件人（用户名）', label_display:'显示名称',
     label_to:'收件人', label_cc:'抄送', label_bcc:'密送',
-    label_subject:'主题', label_body:'正文',
+    label_subject:'主题', label_body:'正文', label_attachments:'附件',
+    label_apikey:'API 密钥',
     ph_display:'可选', ph_email:'address@example.com — 按 Enter 添加',
-    ph_subject:'邮件主题',
+    ph_subject:'邮件主题', ph_apikey:'输入 API 密钥',
     ph_body:'在此撰写邮件…',
     ph_body_md:'用 **Markdown** 编写…',
     hint_email:'每个地址后按 Enter 或逗号确认。',
+    hint_attach:'单个文件最大 3MB',
+    hint_apikey:'本地存储，不会发送到服务器',
     mode_rich:'富文本', mode_md:'Markdown',
-    btn_clear:'清空', btn_send:'发送邮件',
+    btn_clear:'清空', btn_send:'发送邮件', btn_attach:'添加文件',
     err_no_to:'请至少添加一个收件人。',
     err_network:'网络错误：',
+    err_apikey:'请输入 API 密钥', err_nosign:'认证失败',
     sending:'发送中…',
     hdr_sub:'通过 Mailgun SMTP 发送 — 域名：',
   },
@@ -1409,6 +1471,45 @@ document.getElementById('fileInput').addEventListener('change', e => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
+// API KEY & AUTH
+// ══════════════════════════════════════════════════════════════════════════════
+const STORAGE_KEY = 'mailgunfire_apikey';
+
+function getApiKey() {
+  return localStorage.getItem(STORAGE_KEY) || '';
+}
+
+async function computeSignature(timestamp, apiKey) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', enc.encode(apiKey),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(timestamp));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+(function initApiKey() {
+  const savedKey = getApiKey();
+  if (savedKey) {
+    apiKeySection.style.display = 'block';
+    apiKeyInput.value = savedKey;
+  } else {
+    apiKeySection.style.display = 'block';
+  }
+
+  apiKeyInput.addEventListener('change', () => {
+    const key = apiKeyInput.value.trim();
+    if (key) {
+      localStorage.setItem(STORAGE_KEY, key);
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  });
+})();
+
+// ══════════════════════════════════════════════════════════════════════════════
 // SUBMIT
 // ══════════════════════════════════════════════════════════════════════════════
 const form    = document.getElementById('mailForm');
@@ -1453,10 +1554,20 @@ form.addEventListener('submit', async e => {
     attachments: attachments.length ? attachments : undefined,
   };
 
+  const apiKey = getApiKey();
+  const headers = { 'Content-Type': 'application/json' };
+
+  if (apiKey) {
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const signature = await computeSignature(timestamp, apiKey);
+    headers['X-Timestamp'] = timestamp;
+    headers['X-Signature'] = signature;
+  }
+
   try {
     const res  = await fetch(window.location.pathname, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers,
       body: JSON.stringify(payload),
     });
     const data = await res.json();
