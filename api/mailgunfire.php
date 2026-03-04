@@ -334,30 +334,72 @@ body {
 
 .card-header .subtitle strong { color: var(--accent-hi); font-weight: 500; }
 
-/* ── Language Switcher ────────────────────────────────────────────────────── */
-.lang-switcher {
-  display: flex;
-  gap: .3rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+/* ── Hamburger Menu (Language Switcher) ─────────────────────────────────────── */
+.lang-menu {
+  position: relative;
 }
 
-.lang-btn {
-  padding: .22rem .55rem;
-  font-size: .72rem;
-  font-weight: 600;
-  letter-spacing: .03em;
-  border: 1px solid var(--border-hi);
-  border-radius: 4px;
+.lang-trigger {
+  width: 36px; height: 36px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface2);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px;
+  transition: var(--transition);
+}
+
+.lang-trigger:hover { border-color: var(--accent); background: var(--accent-glow); }
+
+.lang-trigger span {
+  display: block;
+  width: 18px; height: 2px;
+  background: var(--text-muted);
+  border-radius: 1px;
+  transition: var(--transition);
+}
+
+.lang-trigger:hover span { background: var(--accent); }
+
+.lang-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0,0,0,.15);
+  min-width: 120px;
+  padding: .3rem;
+  display: none;
+  z-index: 100;
+}
+
+.lang-dropdown.show { display: block; }
+
+.lang-dropdown .lang-btn {
+  display: block;
+  width: 100%;
+  padding: .5rem .7rem;
+  font-size: .8rem;
+  font-weight: 500;
+  text-align: left;
+  border: none;
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--text-muted);
+  color: var(--text);
   cursor: pointer;
   transition: var(--transition);
   font-family: var(--font);
 }
 
-.lang-btn:hover { border-color: var(--accent); color: var(--accent-hi); background: var(--accent-glow); }
-.lang-btn.active { border-color: var(--accent); color: var(--accent-hi); background: rgba(37,99,235,.15); }
+.lang-dropdown .lang-btn:hover { background: var(--accent-glow); color: var(--accent-hi); }
+.lang-dropdown .lang-btn.active { background: rgba(37,99,235,.15); color: var(--accent-hi); font-weight: 600; }
 
 /* ── Form ─────────────────────────────────────────────────────────────────── */
 form {
@@ -792,6 +834,39 @@ input[type="email"]:focus {
 .modal-btn {
   min-width: 100px;
 }
+
+.spinner {
+  width: 24px; height: 24px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+  margin: 0 auto .8rem;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.modal-progress {
+  text-align: left;
+  font-size: .85rem;
+  color: var(--text-muted);
+  margin: 1rem 0;
+}
+
+.modal-progress .step {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .4rem;
+}
+
+.modal-progress .step.done { color: var(--success-fg); }
+.modal-progress .step.err { color: var(--error-fg); }
+
+.modal-progress .step-icon {
+  width: 16px; height: 16px;
+  flex-shrink: 0;
+}
 </style>
 </head>
 <body>
@@ -811,12 +886,19 @@ input[type="email"]:focus {
         <div class="subtitle" id="hdr-sub">Send via Mailgun SMTP &mdash; domain: <strong><?= $domain ?></strong></div>
       </div>
     </div>
-    <div class="lang-switcher">
-      <button class="lang-btn" data-lang="en">EN</button>
-      <button class="lang-btn" data-lang="ja">日本語</button>
-      <button class="lang-btn" data-lang="th">ภาษาไทย</button>
-      <button class="lang-btn" data-lang="zh-cn">简体</button>
-      <button class="lang-btn" data-lang="zh-tw">繁體</button>
+    <div class="lang-menu">
+      <button class="lang-trigger" id="langTrigger" type="button">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <div class="lang-dropdown" id="langDropdown">
+        <button class="lang-btn" data-lang="en">English</button>
+        <button class="lang-btn" data-lang="ja">日本語</button>
+        <button class="lang-btn" data-lang="th">ภาษาไทย</button>
+        <button class="lang-btn" data-lang="zh-cn">简体</button>
+        <button class="lang-btn" data-lang="zh-tw">繁體</button>
+      </div>
     </div>
   </div>
 
@@ -930,6 +1012,16 @@ input[type="email"]:focus {
     <h2 class="modal-title" id="modalTitle"></h2>
     <p class="modal-message" id="modalMessage"></p>
     <button type="button" class="btn-primary modal-btn" id="modalClose" data-i18n="modal_ok">OK</button>
+  </div>
+</div>
+
+<!-- Progress Modal -->
+<div class="modal-overlay" id="progressOverlay">
+  <div class="modal-content">
+    <div class="spinner" id="progressSpinner"></div>
+    <h2 class="modal-title" id="progressTitle" data-i18n="sending">Sending...</h2>
+    <div class="modal-progress" id="progressSteps"></div>
+    <button type="button" class="btn-primary modal-btn" id="progressClose" style="display:none" data-i18n="modal_ok">OK</button>
   </div>
 </div>
 
@@ -1185,16 +1277,33 @@ function applyI18n() {
 }
 
 function setActiveLangBtn(lang) {
-  document.querySelectorAll('.lang-btn').forEach(b => {
+  document.querySelectorAll('.lang-dropdown .lang-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.lang === lang);
   });
 }
 
-document.querySelectorAll('.lang-btn').forEach(btn => {
+const langTrigger = document.getElementById('langTrigger');
+const langDropdown = document.getElementById('langDropdown');
+
+langTrigger.addEventListener('click', (e) => {
+  e.stopPropagation();
+  langDropdown.classList.toggle('show');
+});
+
+document.addEventListener('click', () => {
+  langDropdown.classList.remove('show');
+});
+
+langDropdown.addEventListener('click', (e) => {
+  e.stopPropagation();
+});
+
+document.querySelectorAll('.lang-dropdown .lang-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     currentLang = btn.dataset.lang;
     setActiveLangBtn(currentLang);
     applyI18n();
+    langDropdown.classList.remove('show');
   });
 });
 
@@ -1439,6 +1548,12 @@ const modalTitle = document.getElementById('modalTitle');
 const modalMessage = document.getElementById('modalMessage');
 const modalClose = document.getElementById('modalClose');
 
+const progressOverlay = document.getElementById('progressOverlay');
+const progressSteps = document.getElementById('progressSteps');
+const progressClose = document.getElementById('progressClose');
+const progressSpinner = document.getElementById('progressSpinner');
+const progressTitle = document.getElementById('progressTitle');
+
 function showModal(ok, title, msg) {
   const svg = ok
     ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>'
@@ -1457,6 +1572,67 @@ modalClose.addEventListener('click', () => {
 
 modalOverlay.addEventListener('click', (e) => {
   if (e.target === modalOverlay) modalOverlay.classList.remove('show');
+});
+
+const progressStepsList = [
+  { key: 'step_preparing', en: 'Preparing data...', ja: 'データを準備中...', th: 'กำลังเตรียมข้อมูล...', 'zh-cn': '准备数据...', 'zh-tw': '準備資料...' },
+  { key: 'step_encoding', en: 'Encoding attachments...', ja: '添付ファイルをエンコード中...', th: 'กำลังเข้ารหัสไฟล์แนบ...', 'zh-cn': '编码附件...', 'zh-tw': '編碼附件...' },
+  { key: 'step_connecting', en: 'Connecting to SMTP server...', ja: 'SMTPサーバーに接続中...', th: 'กำลังเชื่อมต่อเซิร์ฟเวอร์ SMTP...', 'zh-cn': '连接 SMTP 服务器...', 'zh-tw': '連線 SMTP 伺服器...' },
+  { key: 'step_auth', en: 'Authenticating...', ja: '認証中...', th: 'กำลังยืนยันตัวตน...', 'zh-cn': '验证身份...', 'zh-tw': '驗證身份...' },
+  { key: 'step_sending', en: 'Sending email...', ja: 'メール送信中...', th: 'กำลังส่งอีเมล...', 'zh-cn': '发送邮件...', 'zh-tw': '傳送郵件...' },
+  { key: 'step_done', en: 'Done!', ja: '完了！', th: 'เสร็จสิ้น!', 'zh-cn': '完成！', 'zh-tw': '完成！' }
+];
+
+function getStepText(step) {
+  const lang = LANG[currentLang] || LANG.en;
+  return step[lang] || step.en;
+}
+
+function showProgressModal() {
+  progressSteps.innerHTML = progressStepsList.map((s, i) => `
+    <div class="step" id="step_${i}">
+      <span class="step-icon" id="step_icon_${i}">○</span>
+      <span id="step_text_${i}">${getStepText(s)}</span>
+    </div>
+  `).join('');
+  progressSpinner.style.display = 'block';
+  progressClose.style.display = 'none';
+  progressTitle.textContent = t('sending');
+  progressOverlay.classList.add('show');
+}
+
+function updateProgress(stepIndex, done) {
+  const el = document.getElementById(`step_${stepIndex}`);
+  const icon = document.getElementById(`step_icon_${stepIndex}`);
+  if (!el) return;
+  el.classList.add(done ? 'done' : 'err');
+  icon.innerHTML = done
+    ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>'
+    : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
+}
+
+function showProgressResult(ok, errorMsg) {
+  progressSpinner.style.display = 'none';
+  for (let i = 0; i < progressStepsList.length; i++) {
+    updateProgress(i, i < 4 ? true : ok);
+  }
+  if (!ok && errorMsg) {
+    const errDiv = document.createElement('div');
+    errDiv.className = 'step err';
+    errDiv.style.marginTop = '1rem';
+    errDiv.innerHTML = `<span class="step-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></span><span>${errorMsg}</span>`;
+    progressSteps.appendChild(errDiv);
+  }
+  progressClose.style.display = 'inline-flex';
+  progressTitle.textContent = ok ? t('modal_success') : t('modal_error');
+}
+
+progressClose.addEventListener('click', () => {
+  progressOverlay.classList.remove('show');
+});
+
+progressOverlay.addEventListener('click', (e) => {
+  if (e.target === progressOverlay) progressOverlay.classList.remove('show');
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1555,10 +1731,13 @@ form.addEventListener('submit', async e => {
   const cc  = ccInput.getAddresses();
   const bcc = bccInput.getAddresses();
 
-  if (to.length === 0) { showStatus(false, '✗ ' + t('err_no_to')); return; }
+  if (to.length === 0) { showModal(false, t('modal_error'), '✗ ' + t('err_no_to')); return; }
 
   sendBtn.disabled = true;
   sendBtn.querySelector('[data-i18n]').textContent = t('sending');
+
+  showProgressModal();
+  updateProgress(0, true);
 
   const attachments = await Promise.all(
     attachmentFiles.map(async f => ({
@@ -1568,9 +1747,11 @@ form.addEventListener('submit', async e => {
     }))
   );
 
+  updateProgress(1, true);
+
   const payload = {
-    sender:  document.getElementById('sender').value.trim(),
-    display: document.getElementById('display').value.trim(),
+    sender:  (document.getElementById('sender') || {value:''}).value.trim(),
+    display: (document.getElementById('display') || {value:''}).value.trim(),
     to, cc, bcc,
     subject: document.getElementById('subject').value.trim(),
     body:    getBodyMarkdown(),
@@ -1580,30 +1761,26 @@ form.addEventListener('submit', async e => {
   const headers = { 'Content-Type': 'application/json' };
 
   try {
+    updateProgress(2, true);
     const res  = await fetch(window.location.pathname, {
       method: 'POST',
       headers: headers,
       body: JSON.stringify(payload),
     });
+    updateProgress(3, true);
     const data = await res.json();
     if (data.ok) {
-      showStatus(true, '✓ ' + data.message);
-      toInput.reset(); ccInput.reset(); bccInput.reset();
-      document.getElementById('subject').value = '';
-      wysiwygPane.innerHTML = '';
-      mdPane.value = '';
-      attachmentFiles = [];
-      renderAttachments();
+      updateProgress(4, true);
+      showProgressResult(true);
     } else {
-      showStatus(false, '✗ ' + data.error);
+      showProgressResult(false, '✗ ' + data.error);
     }
   } catch (err) {
-    showStatus(false, '✗ ' + t('err_network') + err.message);
+    showProgressResult(false, '✗ ' + t('err_network') + err.message);
   } finally {
     sendBtn.disabled = false;
     sendBtn.querySelector('[data-i18n]').textContent = t('btn_send');
   }
 });
+
 </script>
-</body>
-</html>
