@@ -1040,6 +1040,8 @@ input[type="email"]:focus {
         <button class="lang-btn" data-lang="th">ภาษาไทย</button>
         <button class="lang-btn" data-lang="zh-cn">简体</button>
         <button class="lang-btn" data-lang="zh-tw">繁體</button>
+        <button class="lang-btn" data-lang="ms">Bahasa Melayu</button>
+        <button class="lang-btn" data-lang="ta">தமிழ்</button>
       </div>
     </div>
   </div>
@@ -1294,11 +1296,53 @@ const LANG = {
     hdr_sub:'透過 Mailgun SMTP 傳送 — 網域：',
     modal_ok:'OK', modal_success:'成功', modal_error:'錯誤',
   },
+  ms: {
+    label_from:'DARIPADA (NAMA PENGGUNA)', label_display:'NAMA PAPARAN',
+    label_to:'KE', label_cc:'CC', label_bcc:'BCC',
+    label_subject:'SUBJEK', label_body:'BADAN', label_attachments:'LAMPIRAN',
+    label_apikey:'KUNCI API',
+    ph_display:'Pilihan', ph_from:'noreply', ph_email:'address@example.com — Tekan Enter untuk tambah',
+    ph_subject:'Subjek emel', ph_apikey:'Masukkan kunci API',
+    ph_body:'Tulis mesej anda di sini…',
+    ph_body_md:'Tulis dalam **Markdown**…',
+    hint_email:'Tekan Enter atau koma selepas setiap alamat.',
+    hint_attach:'Maksimum 3MB setiap fail',
+    hint_apikey:'Disimpan secara setempat',
+    mode_rich:'Kaya', mode_md:'Markdown',
+    btn_clear:'Kosongkan', btn_send:'Hantar Emel', btn_attach:'Tambah Fail',
+    err_no_to:'Sila tambah sekurang-kurangnya satu penerima.',
+    err_network:'Ralat rangkaian: ',
+    err_apikey:'Sila masukkan kunci API', err_nosign:'Pengesahan gagal',
+    sending:'Menghantar…',
+    hdr_sub:'Hantar melalui Mailgun SMTP — domain: ',
+    modal_ok:'OK', modal_success:'Berjaya', modal_error:'Ralat',
+  },
+  ta: {
+    label_from:'அனுப்புநர் (பயனர்ப்பெயர்)', label_display:'காட்சிப் பெயர்',
+    label_to:'பெறுநர்', label_cc:'பிரதி', label_bcc:'மறை பிரதி',
+    label_subject:'தலைப்பு', label_body:'உள்ளடக்கம்', label_attachments:'இணைப்புகள்',
+    label_apikey:'API விசை',
+    ph_display:'விருப்பம்', ph_from:'noreply', ph_email:'address@example.com — சேர்க்க Enter அழுத்தவும்',
+    ph_subject:'மின்னஞ்சல் தலைப்பு', ph_apikey:'API விசையை உள்ளிடவும்',
+    ph_body:'உங்கள் செய்தியை இங்கு எழுதவும்…',
+    ph_body_md:'**Markdown**ல் எழுதவும்…',
+    hint_email:'ஒவ்வொரு முகவரிக்கும் பிறகு Enter அல்லது கமாவை அழுத்தவும்.',
+    hint_attach:'ஒவ்வோர் கோப்புக்கு அதிகபட்சம் 3MB',
+    hint_apikey:'உள்ளூரில் சேமிக்கப்படுகிறது',
+    mode_rich:'rich', mode_md:'Markdown',
+    btn_clear:'அழி', btn_send:'மின்னஞ்சல் அனுப்பு', btn_attach:'கோப்புகள் சேர்க்க',
+    err_no_to:'குறைந்தபட்சம் ஒரு பெறுநரைச் சேர்க்கவும்.',
+    err_network:'பிணைய பிழை: ',
+    err_apikey:'API விசையை உள்ளிடவும்', err_nosign:'அங்கீகாரம் தோல்வியுற்றது',
+    sending:'அனுப்புகிறது…',
+    hdr_sub:'Mailgun SMTP மூலம் அனுப்பு — கள முகவரி: ',
+    modal_ok:'OK', modal_success:'வெற்றி', modal_error:'பிழை',
+  },
 };
 
 // ── Browser language detection ────────────────────────────────────────────
 function detectLang() {
-  const supported = Object.keys(LANG); // ['en','ja','th','zh-cn','zh-tw']
+  const supported = Object.keys(LANG); // ['en','ja','th','zh-cn','zh-tw','ms','ta']
   const candidates = navigator.languages && navigator.languages.length
     ? [...navigator.languages]
     : [navigator.language || 'en'];
