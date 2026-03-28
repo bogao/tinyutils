@@ -22,11 +22,11 @@ A single-file Cloudflare Worker for sending emails via the Mailgun HTTP API, wit
 
    | Variable  | Type     | Description                                   |
    |-----------|----------|-----------------------------------------------|
-   | `DOMAIN`  | Text     | Your Mailgun domain, e.g. `mg.example.com`    |
+   | `DOMAIN`  | Text     | Your Mailgun domain, e.g. `mydomain.tld`    |
    | `KEY`     | Secret   | Mailgun API key                               |
    | `FROM`    | Text     | Default sender username, e.g. `noreply`       |
-   | `DISPLAY` | Text     | Default display name, e.g. `My App`           |
-   | `EU`      | Text     | Set to any value to use Mailgun EU region     |
+   | `DISPLAY` | Text     | Default display name, e.g. `John Doe`           |
+   | `EU`      | Text     | If present, use Mailgun EU region; otherwise US |
    | `TTL`     | Text     | KV record expiration in seconds (optional)    |
    | `LOCK`    | Secret   | Access password (optional)                    |
 
@@ -53,11 +53,11 @@ A single-file Cloudflare Worker for sending emails via the Mailgun HTTP API, wit
 
    | 变量名    | 类型     | 说明                                          |
    |-----------|----------|-----------------------------------------------|
-   | `DOMAIN`  | Text     | Mailgun 域名，如 `mg.example.com`             |
+   | `DOMAIN`  | Text     | Mailgun 域名，如 `mydomain.tld`             |
    | `KEY`     | Secret   | Mailgun API 密钥                              |
    | `FROM`    | Text     | 默认发件人用户名，如 `noreply`                |
-   | `DISPLAY` | Text     | 默认显示名称，如 `My App`                     |
-   | `EU`      | Text     | 设置任意值即启用 Mailgun 欧洲区域             |
+   | `DISPLAY` | Text     | 默认显示名称，如 `John Doe`                     |
+   | `EU`      | Text     | 只要该键存在即使用欧洲区域，否则使用美国区域  |
    | `TTL`     | Text     | KV 记录过期时间（秒），留空则永久保存         |
    | `LOCK`    | Secret   | 访问密码（可选）                              |
 
@@ -84,11 +84,11 @@ A single-file Cloudflare Worker for sending emails via the Mailgun HTTP API, wit
 
    | 變數名    | 類型     | 說明                                          |
    |-----------|----------|-----------------------------------------------|
-   | `DOMAIN`  | Text     | Mailgun 網域，如 `mg.example.com`             |
+   | `DOMAIN`  | Text     | Mailgun 網域，如 `mydomain.tld`             |
    | `KEY`     | Secret   | Mailgun API 金鑰                              |
    | `FROM`    | Text     | 預設寄件人使用者名稱，如 `noreply`            |
-   | `DISPLAY` | Text     | 預設顯示名稱，如 `My App`                     |
-   | `EU`      | Text     | 設定任意值即啟用 Mailgun 歐洲區域             |
+   | `DISPLAY` | Text     | 預設顯示名稱，如 `John Doe`                     |
+   | `EU`      | Text     | 只要該鍵存在即使用歐洲區域，否則使用美國區域  |
    | `TTL`     | Text     | KV 紀錄過期時間（秒），留空則永久保存         |
    | `LOCK`    | Secret   | 存取密碼（選用）                              |
 
