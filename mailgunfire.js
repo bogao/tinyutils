@@ -9,6 +9,15 @@ function getConfig(env) {
   return { domain, apiKey, login, display, eu };
 }
 
+function isValidLock(val) {
+  return typeof val === 'string' && val.length >= 4 && /^[\x21-\x7e]+$/.test(val);
+}
+
+function isValidTtl(val) {
+  const n = parseInt(val, 10);
+  return !isNaN(n) && n >= 60 && String(n) === String(val).trim();
+}
+
 const HTML_TEMPLATE = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -523,8 +532,9 @@ if (LOCKED) {
   var logoutBtn = document.getElementById("logoutBtn");
   logoutBtn.style.display = "";
   logoutBtn.addEventListener("click", function() {
-    document.cookie = "mf_auth=; Path=/; Max-Age=0; Secure; SameSite=Strict";
-    window.location.reload();
+    fetch("/logout", { method: "POST" }).then(function() {
+      window.location.reload();
+    });
   });
 }
 
@@ -750,7 +760,7 @@ function handleGet(env, cdnHost) {
     });
   }
   const kvBound = env.SENT ? 'true' : 'false';
-  const locked = env.LOCK ? 'true' : 'false';
+  const locked = isValidLock(env.LOCK) ? 'true' : 'false';
   const html = HTML_TEMPLATE
     .replace(/\{\{CDN_HOST\}\}/g, cdnHost)
     .replace(/\{\{KV_BOUND\}\}/g, kvBound)
@@ -873,8 +883,7 @@ async function handlePost(request, env) {
       ts: Date.now(),
     };
     const kvOpts = {};
-    const ttl = parseInt(env.TTL, 10);
-    if (ttl > 0) kvOpts.expirationTtl = ttl;
+    if (isValidTtl(env.TTL)) kvOpts.expirationTtl = parseInt(env.TTL, 10);
     await env.SENT.put('sent:' + id, JSON.stringify(record), kvOpts);
   }
 
@@ -969,7 +978,7 @@ async function hashToken(password) {
 
 async function handleUnlock(request, env) {
   const headers = { 'Content-Type': 'application/json' };
-  if (!env.LOCK) {
+  if (!isValidLock(env.LOCK)) {
     return new Response(JSON.stringify({ ok: true }), { headers });
   }
   let input;
@@ -1067,8 +1076,18 @@ export default {
       return handleUnlock(request, env);
     }
 
-    // Check LOCK — if LOCK secret set, require auth cookie
-    if (env.LOCK) {
+    // POST /logout — clear auth cookie
+    if (method === 'POST' && path === '/logout') {
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Set-Cookie': 'mf_auth=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0',
+        },
+      });
+    }
+
+    // Check LOCK — if valid LOCK secret set, require auth cookie
+    if (isValidLock(env.LOCK)) {
       const cookie = request.headers.get('Cookie') || '';
       const match = cookie.match(/mf_auth=([^;]+)/);
       const valid = match && match[1] === await hashToken(env.LOCK);

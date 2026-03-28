@@ -27,8 +27,8 @@ A single-file Cloudflare Worker for sending emails via the Mailgun HTTP API, wit
    | `FROM`    | Text     | Default sender username, e.g. `noreply`       |
    | `DISPLAY` | Text     | Default display name, e.g. `John Doe`           |
    | `EU`      | Text     | If present, use Mailgun EU region; otherwise US |
-   | `TTL`     | Text     | KV record expiration in seconds (optional)    |
-   | `LOCK`    | Secret   | Access password (optional)                    |
+   | `TTL`     | Text     | KV record expiration in seconds (integer >= 60); ignored if invalid; omit for permanent storage |
+   | `LOCK`    | Secret   | Access password (4+ ASCII printable chars, no spaces); ignored if invalid; omit for open access |
 
 3. (Optional) Bind a **KV namespace** named `SENT` to enable sent email history
 4. Deploy
@@ -58,8 +58,8 @@ A single-file Cloudflare Worker for sending emails via the Mailgun HTTP API, wit
    | `FROM`    | Text     | 默认发件人用户名，如 `noreply`                |
    | `DISPLAY` | Text     | 默认显示名称，如 `John Doe`                     |
    | `EU`      | Text     | 只要该键存在即使用欧洲区域，否则使用美国区域  |
-   | `TTL`     | Text     | KV 记录过期时间（秒），留空则永久保存         |
-   | `LOCK`    | Secret   | 访问密码（可选）                              |
+   | `TTL`     | Text     | 已发送记录保存时长（秒，整数 >= 60），不合法则忽略，不设则永久保存 |
+   | `LOCK`    | Secret   | 访问密码（4+ 位 ASCII 可打印字符，不含空格），不合法则忽略，不设则开放访问 |
 
 3. （可选）绑定一个名为 `SENT` 的 **KV 命名空间**以启用已发送记录
 4. 部署
@@ -89,8 +89,8 @@ A single-file Cloudflare Worker for sending emails via the Mailgun HTTP API, wit
    | `FROM`    | Text     | 預設寄件人使用者名稱，如 `noreply`            |
    | `DISPLAY` | Text     | 預設顯示名稱，如 `John Doe`                     |
    | `EU`      | Text     | 只要該鍵存在即使用歐洲區域，否則使用美國區域  |
-   | `TTL`     | Text     | KV 紀錄過期時間（秒），留空則永久保存         |
-   | `LOCK`    | Secret   | 存取密碼（選用）                              |
+   | `TTL`     | Text     | 已傳送紀錄保存時長（秒，整數 >= 60），不合法則忽略，不設則永久保存 |
+   | `LOCK`    | Secret   | 存取密碼（4+ 位 ASCII 可列印字元，不含空格），不合法則忽略，不設則開放存取 |
 
 3. （選用）綁定一個名為 `SENT` 的 **KV 命名空間**以啟用已傳送紀錄
 4. 部署
